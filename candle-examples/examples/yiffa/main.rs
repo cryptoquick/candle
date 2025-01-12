@@ -15,7 +15,11 @@ use candle_transformers::{
 };
 use tokenizers::Tokenizer;
 
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
+use std::io::BufReader;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -169,8 +173,9 @@ struct Args {
     #[arg(long)]
     verbose_prompt: bool,
 
+    /// The prompt to use for text generation. If not provided, prompts.yaml will be used.
     #[arg(long)]
-    prompt: String,
+    prompt: Option<String>,
 
     #[arg(long)]
     target: String,
@@ -233,6 +238,11 @@ pub fn load_image<P: AsRef<std::path::Path>>(p: P) -> candle::Result<Tensor> {
     (data.to_dtype(candle::DType::F32)? / 255.)?
         .broadcast_sub(&mean)?
         .broadcast_div(&std)
+}
+
+#[derive(Debug, Deserialize)]
+struct Prompts {
+    prompts: HashMap<String, String>,
 }
 
 #[tokio::main]
@@ -347,6 +357,16 @@ async fn main() -> anyhow::Result<()> {
         vec![target_path.to_path_buf()]
     };
 
+    let prompts = if args.prompt.is_none() {
+        let file_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/yiffa/prompts.yaml");
+        let file = File::open(&file_path)?;
+        let reader = BufReader::new(file);
+        let prompts: Prompts = serde_yaml::from_reader(reader)?;
+        prompts.prompts
+    } else {
+        HashMap::new()
+    };
+
     for image_path in image_paths {
         let image = load_image(&image_path)?
             .to_device(&device)?
@@ -364,19 +384,44 @@ async fn main() -> anyhow::Result<()> {
             start.elapsed()
         );
 
-        let prompt = format!("\n\nQuestion: {0}\n\nAnswer:", args.prompt);
-        let mut pipeline = TextGeneration::new(
-            model.lock().unwrap().clone(),
-            tokenizer.lock().unwrap().clone(),
-            args.seed,
-            args.temperature,
-            args.top_p,
-            args.repeat_penalty,
-            args.repeat_last_n,
-            args.verbose_prompt,
-            &device,
-        );
-        pipeline.run(&prompt, &image_embeds, args.sample_len)?;
+        if args.prompt.is_none() {
+            for (tag, prompt) in &prompts {
+                println!("Tag: {}", tag);
+                println!("Prompt: {}", prompt);
+                let mut pipeline = TextGeneration::new(
+                    model.lock().unwrap().clone(),
+                    tokenizer.lock().unwrap().clone(),
+                    args.seed,
+                    args.temperature,
+                    args.top_p,
+                    args.repeat_penalty,
+                    args.repeat_last_n,
+                    args.verbose_prompt,
+                    &device,
+                );
+                pipeline.run(prompt, &image_embeds, args.sample_len)?;
+            }
+        } else {
+            let prompt = format!(
+                "\n\nQuestion: {0}\n\nAnswer:",
+                args.prompt.as_deref().unwrap_or_default()
+            );
+            println!("Image path: {:?}", image_path);
+            println!("Prompt: {}", prompt);
+
+            let mut pipeline = TextGeneration::new(
+                model.lock().unwrap().clone(),
+                tokenizer.lock().unwrap().clone(),
+                args.seed,
+                args.temperature,
+                args.top_p,
+                args.repeat_penalty,
+                args.repeat_last_n,
+                args.verbose_prompt,
+                &device,
+            );
+            pipeline.run(&prompt, &image_embeds, args.sample_len)?;
+        }
     }
 
     Ok(())

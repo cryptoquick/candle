@@ -41,6 +41,7 @@ tokenizers = { workspace = true, features = ["onig"] }
 cpal = { version = "0.15.2", optional = true }
 pdf2image = { version = "0.1.2", optional = true }
 futures = { workspace = true }
+serde_yaml = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

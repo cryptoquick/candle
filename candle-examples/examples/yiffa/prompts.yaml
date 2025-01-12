@@ -1,0 +1,8 @@
+prompts:
+  gay: "Briefly, yes or no, does the image show someone with a penis being penetrated by someone else with a penis? If not, is a penis visible and there are no vaginas visible?"
+  straight: "Briefly, yes or no, does the image show someone with a vagina being penetrated by someone else with a vagina? If not, is a vagina visible and there are no penises visible?"
+  scaly: "Briefly, yes or no, does the image show any creature with reptilian features?"
+  furry: "Briefly, yes or no, does the imagine show any creature with fur on its body?"
+  tentacles: "Briefly, yes or no, are there tentacles in this image?"
+  penis_count: "Using numerals, tell me how many penises are in this image? Include penetrating penises."
+  nsfw/sfw: "Briefly, yes or no, is this image sexual in nature?"

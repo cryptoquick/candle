@@ -94,6 +94,7 @@ yoke = { version = "0.7.2", features = ["derive"] }
 zip = { version = "1.1.1", default-features = false }
 metal = { version = "0.27.0", features = ["mps"] }
 futures = { version = "0.3.30", features = ["alloc"] }
+serde_yaml = "0.9"
 
 [profile.release-with-debug]
 inherits = "release"
