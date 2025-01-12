@@ -261,6 +261,7 @@ impl Module for VisionEncoder {
     }
 }
 
+#[derive(Clone)]
 pub struct Model {
     pub text_model: PhiModel,
     pub vision_encoder: VisionEncoder,
