@@ -9,5 +9,5 @@ This has been modified to generate a static website with the results and a few e
 Run Yiffa from the `candle-examples` crate:
 
 ```bash
-$ cargo run --example yiffa --release -- --target "/home/hunter/NSFW"
+$ cargo run --example yiffa --release --features cuda -- --temperature -1.25 --target "/home/hunter/NSFW"
 ```
