@@ -94,7 +94,8 @@ impl TextGeneration {
     }
 
     fn run(&mut self, prompt: &str, image_embeds: &Tensor, sample_len: usize) -> Result<String> {
-        use std::io::Write;
+        let start_time = std::time::Instant::now();
+
         println!("starting the inference loop");
         let tokens = self.tokenizer.encode(prompt, true).map_err(E::msg)?;
         if tokens.is_empty() {
@@ -122,6 +123,10 @@ impl TextGeneration {
         let start_gen = std::time::Instant::now();
         let mut load_t = std::time::Duration::from_secs_f64(0f64);
         for index in 0..sample_len {
+            if start_time.elapsed() > std::time::Duration::from_secs(10) {
+                anyhow::bail!("Generation took longer than 10 seconds, stopping early.");
+            }
+
             let context_size = if index > 0 { 1 } else { tokens.len() };
             let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
             let input = Tensor::new(ctxt, &self.device)?.unsqueeze(0)?;
@@ -361,9 +366,11 @@ impl SiteGenerator {
     fn new() -> std::io::Result<Self> {
         let site_dir = PathBuf::from("site");
         let images_dir = site_dir.join("images");
+        let thumbnails_dir = site_dir.join("thumbnails");
 
         fs::create_dir_all(&site_dir)?;
         fs::create_dir_all(&images_dir)?;
+        fs::create_dir_all(&thumbnails_dir)?;
 
         Ok(Self { images_dir })
     }
@@ -375,8 +382,22 @@ impl SiteGenerator {
             .to_string_lossy()
             .into_owned();
 
+        // Copy original image
         let dest_path = self.images_dir.join(&filename);
         fs::copy(src_path, &dest_path)?;
+
+        // Create and save thumbnail
+        let img = image::open(src_path)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        let thumbnail = img.thumbnail(400, 400);
+
+        // Convert to RGB before saving as JPEG
+        let thumbnail_rgb = thumbnail.to_rgb8();
+
+        let thumb_path = PathBuf::from("site").join("thumbnails").join(&filename);
+        thumbnail_rgb
+            .save_with_format(&thumb_path, image::ImageFormat::Jpeg)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
         Ok(format!("images/{}", filename))
     }
@@ -411,6 +432,7 @@ impl ImageResults {
 <head>
     <meta charset="utf-8">
     <meta http-equiv="refresh" content="5">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>yiffa.app</title>
     <style>
         body {{
@@ -447,6 +469,8 @@ impl ImageResults {
             width: 200px;
             height: 200px;
             object-fit: cover;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
         }}
         .tags {{
             display: flex;
@@ -464,6 +488,11 @@ impl ImageResults {
         }}
         .tag:hover {{
             background: #d0d0d0;
+        }}
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {{
+            .thumbnail {{
+                image-rendering: auto;
+            }}
         }}
     </style>
 </head>
@@ -532,10 +561,12 @@ impl ImageResults {
             writeln!(
                 file,
                 r#"        <div class="item">
-            <a href="{}" target="_blank"><img class="thumbnail" src="{}" alt="image"/></a>
+            <a href="{}" target="_blank"><img class="thumbnail" src="thumbnails/{}" alt="image"/></a>
             <div class="tags">{}</div>
         </div>"#,
-                image_path, image_path, tags_html
+                image_path,
+                Path::new(image_path).file_name().unwrap().to_string_lossy(),
+                tags_html
             )?;
         }
         writeln!(file, "    </div>\n</body>\n</html>")?;
@@ -572,9 +603,10 @@ impl ImageResults {
                     writeln!(
                         file,
                         r#"        <div class="item">
-            <a href="../{}" target="_blank"><img class="thumbnail" src="../{}" alt="image"/></a>
+            <a href="../{}" target="_blank"><img class="thumbnail" src="../thumbnails/{}" alt="image"/></a>
         </div>"#,
-                        image_path, image_path
+                        image_path,
+                        Path::new(image_path).file_name().unwrap().to_string_lossy()
                     )?;
                 }
             }
