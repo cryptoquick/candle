@@ -11,3 +11,10 @@ Run Yiffa from the `candle-examples` crate:
 ```bash
 $ cargo run --example yiffa --release --features cuda -- --temperature -1.25 --target "/home/hunter/NSFW"
 ```
+
+May also need the following:
+
+```bash
+export NVCC_CCBIN=/usr/bin/clang++
+export CUDA_COMPUTE_CAP=61
+```
